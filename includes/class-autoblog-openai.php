@@ -176,7 +176,7 @@ class AutoBlog_OpenAI {
     /**
      * Generate text using OpenAI API
      */
-    private function generate_text($prompt, $model = 'gpt-4') {
+    private function generate_text($prompt, $model = 'gpt-4o-mini') {
         $data = array(
             'model' => $model,
             'messages' => array(
@@ -214,7 +214,8 @@ class AutoBlog_OpenAI {
             'prompt' => $prompt,
             'n' => 1,
             'size' => '1024x1024',
-            'quality' => 'standard'
+            'quality' => 'standard',
+            'response_format' => 'url'
         );
         
         $response = $this->make_request('images/generations', $data);
@@ -431,13 +432,19 @@ class AutoBlog_OpenAI {
     private function make_request($endpoint, $data = array(), $method = 'POST', $api_key = null) {
         $key = $api_key ?: $this->api_key;
         
+        if (empty($key)) {
+            return new WP_Error('no_api_key', __('OpenAI API key is required.', 'autoblog'));
+        }
+        
         $args = array(
             'method' => $method,
             'headers' => array(
                 'Authorization' => 'Bearer ' . $key,
-                'Content-Type' => 'application/json'
+                'Content-Type' => 'application/json',
+                'User-Agent' => 'AutoBlog-WordPress-Plugin/1.0'
             ),
-            'timeout' => 60
+            'timeout' => 120,
+            'sslverify' => true
         );
         
         if ($method === 'POST' && !empty($data)) {
@@ -447,43 +454,72 @@ class AutoBlog_OpenAI {
         $response = wp_remote_request($this->api_endpoint . $endpoint, $args);
         
         if (is_wp_error($response)) {
+            $this->log_api_usage($endpoint, $data, $response->get_error_message(), 'error');
             return $response;
         }
         
+        $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
+        
+        // Log the raw response for debugging
+        error_log('OpenAI API Response: ' . $body);
+        
         $decoded = json_decode($body, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return new WP_Error('json_error', __('Invalid JSON response from OpenAI API.', 'autoblog'));
+            $error_msg = 'Invalid JSON response from OpenAI API. Raw response: ' . substr($body, 0, 500);
+            $this->log_api_usage($endpoint, $data, $error_msg, 'error');
+            return new WP_Error('json_error', __($error_msg, 'autoblog'));
         }
         
-        $status_code = wp_remote_retrieve_response_code($response);
-        
         if ($status_code >= 400) {
-            $error_message = $decoded['error']['message'] ?? __('Unknown API error.', 'autoblog');
+            $error_message = $decoded['error']['message'] ?? 'Unknown API error. Status: ' . $status_code;
+            $this->log_api_usage($endpoint, $data, $error_message, 'error');
             return new WP_Error('api_error', $error_message);
         }
         
+        $this->log_api_usage($endpoint, $data, $decoded, 'success');
         return $decoded;
     }
     
     /**
      * Log API usage
      */
-    private function log_api_usage($api_type, $request_data, $response_data, $status = 'success') {
+    private function log_api_usage($endpoint, $request_data, $response_data, $status = 'success') {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'autoblog_api_logs';
+        $table_name = $wpdb->prefix . 'autoblog_api_usage';
+        
+        // Calculate tokens and cost (simplified estimation)
+        $tokens_used = 0;
+        $cost = 0;
+        
+        if (is_array($request_data) && isset($request_data['messages'])) {
+            foreach ($request_data['messages'] as $message) {
+                $tokens_used += str_word_count($message['content']) * 1.3; // Rough estimation
+            }
+        }
+        
+        if (is_array($response_data) && isset($response_data['choices'][0]['message']['content'])) {
+            $tokens_used += str_word_count($response_data['choices'][0]['message']['content']) * 1.3;
+        }
+        
+        // Rough cost calculation (adjust based on current OpenAI pricing)
+        $cost = $tokens_used * 0.00002; // Approximate cost per token
         
         $wpdb->insert(
             $table_name,
             array(
-                'api_type' => $api_type,
-                'request_data' => is_string($request_data) ? $request_data : json_encode($request_data),
-                'response_data' => is_string($response_data) ? $response_data : json_encode($response_data),
-                'status' => $status
+                'api_type' => 'openai',
+                'endpoint' => $endpoint,
+                'tokens_used' => intval($tokens_used),
+                'cost' => $cost,
+                'response_time' => 0, // Could be calculated if needed
+                'status' => $status,
+                'error_message' => $status === 'error' ? (is_string($response_data) ? $response_data : json_encode($response_data)) : null,
+                'created_at' => current_time('mysql')
             ),
-            array('%s', '%s', '%s', '%s')
+            array('%s', '%s', '%d', '%f', '%d', '%s', '%s', '%s')
         );
     }
     
@@ -503,7 +539,7 @@ class AutoBlog_OpenAI {
         $prompt .= "Comment: {$comment_content}\n\n";
         $prompt .= "Generate a thoughtful, helpful reply (max 200 words). Be conversational but professional.";
         
-        $response = $this->generate_text($prompt, 'gpt-3.5-turbo');
+        $response = $this->generate_text($prompt, 'gpt-4o-mini');
         
         if (is_wp_error($response)) {
             return false;
