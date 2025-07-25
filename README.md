@@ -95,7 +95,28 @@ AutoBlog intelligently mixes blog post types for content diversity and SEO optim
 - Comparison posts
 - Tutorials
 - Evergreen/pillar content
+- **Research-backed articles** (NEW!)
+- **News summaries with sources** (NEW!)
+- **Trend analysis posts** (NEW!)
 - and more...
+
+## 🔬 Research-Powered Content Generation
+
+AutoBlog now features **Perplexity AI integration** for research-backed content generation:
+
+### Key Research Features:
+- **Real-time web data**: Access current information and recent developments
+- **Source citations**: Automatic citation and reference management
+- **Research depth control**: Light, medium, or deep research options
+- **Fact-checking**: Verify information with multiple sources
+- **Trend analysis**: Stay current with latest developments in your niche
+
+### Research Workflow:
+1. **Research Phase**: Perplexity AI conducts comprehensive research on your topic
+2. **Source Verification**: Multiple sources are gathered and verified
+3. **Content Generation**: OpenAI creates content based on research findings
+4. **Citation Integration**: Sources are automatically integrated into the content
+5. **Quality Assurance**: Research-backed content with proper attribution
 
 ---
 
@@ -104,6 +125,7 @@ AutoBlog intelligently mixes blog post types for content diversity and SEO optim
 - WordPress (PHP + REST API)
 - JavaScript (admin panel interactivity)
 - OpenAI API (GPT + DALL·E)
+- Perplexity AI API (Research & Real-time Data)
 - Google Search Console API
 - Amazon Associates API (optional)
 

@@ -23,7 +23,14 @@
         bindEvents: function() {
             // Test OpenAI connection
             $('#test-openai-connection').on('click', this.testOpenAIConnection);
-            
+
+            // Test Perplexity connection
+            $('#test-perplexity-connection').on('click', this.testPerplexityConnection);
+
+            // Research functionality
+            $('#research-topic-form').on('submit', this.researchTopic);
+            $('#generate-research-content-form').on('submit', this.generateResearchContent);
+
             // Generate content schedule
             $('#generate-schedule').on('click', this.generateSchedule);
             
@@ -96,7 +103,182 @@
                 }
             });
         },
-        
+
+        /**
+         * Test Perplexity API connection
+         */
+        testPerplexityConnection: function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var $status = $('#perplexity-connection-status');
+
+            $button.prop('disabled', true).text('Testing...');
+            $status.removeClass('success error').text('Testing connection...');
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_test_perplexity_api',
+                    nonce: autoblog_admin.nonce,
+                    api_key: $('input[name="autoblog_settings[perplexity_api_key]"]').val()
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $status.addClass('success').text('✓ Connection successful!');
+                    } else {
+                        $status.addClass('error').text('✗ ' + response.data);
+                    }
+                },
+                error: function() {
+                    $status.addClass('error').text('✗ Connection failed');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Test Connection');
+                }
+            });
+        },
+
+        /**
+         * Research topic using Perplexity
+         */
+        researchTopic: function(e) {
+            e.preventDefault();
+
+            var $form = $(this);
+            var $button = $form.find('button[type="submit"]');
+            var topic = $('#research-topic').val();
+            var researchDepth = $('#research-depth').val();
+
+            if (!topic.trim()) {
+                alert('Please enter a topic to research.');
+                return;
+            }
+
+            $button.prop('disabled', true).text('Researching...');
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_research_topic',
+                    nonce: autoblog_admin.nonce,
+                    topic: topic,
+                    research_depth: researchDepth
+                },
+                success: function(response) {
+                    if (response.success) {
+                        AutoBlogAdmin.displayResearchResults(response.data);
+                        $('#research-results').show();
+                    } else {
+                        alert('Research failed: ' + response.data);
+                    }
+                },
+                error: function() {
+                    alert('Research request failed. Please try again.');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Start Research');
+                }
+            });
+        },
+
+        /**
+         * Generate content based on research
+         */
+        generateResearchContent: function(e) {
+            e.preventDefault();
+
+            var $form = $(this);
+            var $button = $form.find('button[type="submit"]');
+            var topic = $('#research-topic').val();
+            var contentType = $('#content-type').val();
+            var researchDepth = $('#research-depth').val();
+
+            $button.prop('disabled', true).text('Generating Content...');
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_generate_research_content',
+                    nonce: autoblog_admin.nonce,
+                    topic: topic,
+                    content_type: contentType,
+                    research_depth: researchDepth
+                },
+                success: function(response) {
+                    if (response.success) {
+                        AutoBlogAdmin.displayGeneratedContent(response.data);
+                        $('#generated-content').show();
+                    } else {
+                        alert('Content generation failed: ' + response.data);
+                    }
+                },
+                error: function() {
+                    alert('Content generation request failed. Please try again.');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Generate Content');
+                }
+            });
+        },
+
+        /**
+         * Display research results
+         */
+        displayResearchResults: function(data) {
+            var $content = $('#research-content');
+            var $sources = $('#research-sources');
+
+            // Display research content
+            $content.html('<h3>Research Summary</h3><p>' + data.content.replace(/\n/g, '</p><p>') + '</p>');
+
+            // Display sources if available
+            if (data.citations && data.citations.length > 0) {
+                var sourcesHtml = '<h3>Sources</h3><ul>';
+                data.citations.forEach(function(citation) {
+                    if (citation.url) {
+                        sourcesHtml += '<li><a href="' + citation.url + '" target="_blank">' +
+                                      (citation.title || citation.url) + '</a></li>';
+                    }
+                });
+                sourcesHtml += '</ul>';
+                $sources.html(sourcesHtml);
+            } else {
+                $sources.html('<h3>Sources</h3><p>No specific sources available for this research.</p>');
+            }
+        },
+
+        /**
+         * Display generated content
+         */
+        displayGeneratedContent: function(data) {
+            var $preview = $('#content-preview');
+
+            if (data.content && data.content.title) {
+                var contentHtml = '<h2>' + data.content.title + '</h2>';
+                contentHtml += '<div class="content-body">' + data.content.content + '</div>';
+
+                if (data.research && data.research.sources && data.research.sources.length > 0) {
+                    contentHtml += '<h3>Research Sources</h3><ul>';
+                    data.research.sources.forEach(function(source) {
+                        contentHtml += '<li><a href="' + source.url + '" target="_blank">' +
+                                      source.title + '</a> - ' + source.domain + '</li>';
+                    });
+                    contentHtml += '</ul>';
+                }
+
+                $preview.html(contentHtml);
+
+                // Store data for publishing
+                $('#generated-content').data('content-data', data);
+            } else {
+                $preview.html('<p>Error: Invalid content data received.</p>');
+            }
+        },
+
         /**
          * Generate content schedule
          */

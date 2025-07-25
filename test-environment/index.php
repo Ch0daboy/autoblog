@@ -226,6 +226,7 @@ try {
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog.php';
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-admin.php';
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-openai.php';
+    require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-perplexity.php';
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-scheduler.php';
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-affiliate.php';
     require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-comments.php';

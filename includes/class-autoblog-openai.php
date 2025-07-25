@@ -547,4 +547,160 @@ class AutoBlog_OpenAI {
         
         return $response['choices'][0]['message']['content'] ?? false;
     }
+
+    /**
+     * Generate research-backed blog post using Perplexity research data
+     */
+    public function generate_research_backed_post($research_data) {
+        if (empty($this->api_key)) {
+            return new WP_Error('no_api_key', __('OpenAI API key not configured.', 'autoblog'));
+        }
+
+        $topic = $research_data['topic'];
+        $content_type = $research_data['content_type'];
+        $research_content = $research_data['research_data']['primary_content'];
+        $sources = $research_data['sources'];
+        $key_points = $research_data['key_points'];
+        $blog_description = $this->settings['blog_description'] ?? '';
+
+        // Build comprehensive prompt with research data
+        $prompt = $this->build_research_backed_prompt($topic, $content_type, $research_content, $sources, $key_points, $blog_description);
+
+        // Generate the main content
+        $content_response = $this->generate_text($prompt, 'gpt-4o');
+
+        if (is_wp_error($content_response)) {
+            return $content_response;
+        }
+
+        $content = $content_response['choices'][0]['message']['content'] ?? '';
+
+        if (empty($content)) {
+            return new WP_Error('empty_content', __('Generated content is empty.', 'autoblog'));
+        }
+
+        // Parse the generated content
+        $parsed_content = $this->parse_generated_content($content);
+
+        // Add research sources to the content
+        $parsed_content['content'] = $this->add_research_sources($parsed_content['content'], $sources);
+
+        // Generate featured image if needed
+        $featured_image = $this->generate_featured_image($parsed_content['title']);
+
+        // Add affiliate links if Amazon ID is configured
+        if (!empty($this->settings['amazon_affiliate_id'])) {
+            $parsed_content['content'] = $this->add_affiliate_links($parsed_content['content'], $content_type);
+        }
+
+        // Create the post
+        $post_data = array(
+            'post_title' => $parsed_content['title'],
+            'post_content' => $parsed_content['content'],
+            'post_excerpt' => $parsed_content['excerpt'],
+            'post_status' => $this->settings['auto_publish'] ? 'publish' : 'draft',
+            'post_type' => 'post',
+            'meta_input' => array(
+                '_autoblog_generated' => '1',
+                '_autoblog_post_type' => $content_type,
+                '_autoblog_research_backed' => '1',
+                '_autoblog_generation_date' => current_time('mysql'),
+                '_autoblog_research_sources' => json_encode($sources),
+                '_yoast_wpseo_title' => $parsed_content['seo_title'],
+                '_yoast_wpseo_metadesc' => $parsed_content['meta_description']
+            )
+        );
+
+        $post_id = wp_insert_post($post_data);
+
+        if (is_wp_error($post_id)) {
+            return $post_id;
+        }
+
+        // Set featured image if generated
+        if ($featured_image && !is_wp_error($featured_image)) {
+            set_post_thumbnail($post_id, $featured_image);
+        }
+
+        // Log the generation
+        $this->log_api_usage('research-backed-generation', array(
+            'topic' => $topic,
+            'content_type' => $content_type,
+            'post_id' => $post_id
+        ), 'success', 'success');
+
+        return array(
+            'post_id' => $post_id,
+            'title' => $parsed_content['title'],
+            'content' => $parsed_content['content'],
+            'sources' => $sources,
+            'research_data' => $research_data
+        );
+    }
+
+    /**
+     * Build prompt for research-backed content generation
+     */
+    private function build_research_backed_prompt($topic, $content_type, $research_content, $sources, $key_points, $blog_description) {
+        $prompt = "You are a professional content writer creating a {$content_type} about '{$topic}'. ";
+
+        if (!empty($blog_description)) {
+            $prompt .= "Blog context: {$blog_description}\n\n";
+        }
+
+        $prompt .= "RESEARCH DATA:\n";
+        $prompt .= $research_content . "\n\n";
+
+        if (!empty($key_points)) {
+            $prompt .= "KEY POINTS TO INCLUDE:\n";
+            foreach ($key_points as $point) {
+                $prompt .= "- " . $point . "\n";
+            }
+            $prompt .= "\n";
+        }
+
+        $prompt .= "INSTRUCTIONS:\n";
+        $prompt .= "1. Create comprehensive, well-structured content based on the research data\n";
+        $prompt .= "2. Include specific facts, statistics, and insights from the research\n";
+        $prompt .= "3. Write in an engaging, informative style appropriate for the content type\n";
+        $prompt .= "4. Ensure the content is original while incorporating the research findings\n";
+        $prompt .= "5. Include relevant subheadings and structure for readability\n";
+        $prompt .= "6. Add a compelling introduction and conclusion\n";
+        $prompt .= "7. Optimize for SEO with natural keyword integration\n\n";
+
+        $prompt .= "Return the response in this exact JSON format:\n";
+        $prompt .= "{\n";
+        $prompt .= '  "title": "Compelling blog post title",';
+        $prompt .= '  "content": "Full blog post content with HTML formatting",';
+        $prompt .= '  "excerpt": "Brief excerpt (150-160 characters)",';
+        $prompt .= '  "seo_title": "SEO-optimized title (60 characters max)",';
+        $prompt .= '  "meta_description": "Meta description (150-160 characters)"';
+        $prompt .= "\n}";
+
+        return $prompt;
+    }
+
+    /**
+     * Add research sources to content
+     */
+    private function add_research_sources($content, $sources) {
+        if (empty($sources)) {
+            return $content;
+        }
+
+        $sources_html = "\n\n<h3>Sources and References</h3>\n<ul class=\"autoblog-sources\">\n";
+
+        foreach ($sources as $index => $source) {
+            $sources_html .= sprintf(
+                '<li><a href="%s" target="_blank" rel="noopener">%s</a> - %s</li>' . "\n",
+                esc_url($source['url']),
+                esc_html($source['title']),
+                esc_html($source['domain'])
+            );
+        }
+
+        $sources_html .= "</ul>\n";
+
+        return $content . $sources_html;
+    }
 }
