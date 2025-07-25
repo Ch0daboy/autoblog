@@ -1,48 +1,49 @@
 <?php
 /**
- * AutoBlog OpenAI Integration Class
+ * AutoBlog Google Gemini Integration Class
  *
  * @package AutoBlog
  */
 
-class AutoBlog_OpenAI {
-    
+class AutoBlog_Gemini {
+
     /**
-     * OpenAI API endpoint
+     * Google Gemini API endpoint
      */
-    private $api_endpoint = 'https://api.openai.com/v1/';
-    
+    private $api_endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
     /**
      * API key
      */
     private $api_key;
-    
+
     /**
      * Plugin settings
      */
     private $settings;
-    
+
     /**
      * Constructor
      */
     public function __construct() {
         $this->settings = get_option('autoblog_settings', array());
-        $this->api_key = $this->settings['openai_api_key'] ?? '';
+        $this->api_key = $this->settings['gemini_api_key'] ?? '';
     }
     
     /**
-     * Test OpenAI API connection
+     * Test Google Gemini API connection
      */
     public function test_connection($api_key = null) {
         $key = $api_key ?: $this->api_key;
-        
+
         if (empty($key)) {
             return false;
         }
-        
-        $response = $this->make_request('models', array(), 'GET', $key);
-        
-        return !is_wp_error($response) && isset($response['data']);
+
+        // Test with a simple generation request
+        $test_response = $this->generate_text("Hello", array('max_tokens' => 10), $key);
+
+        return !is_wp_error($test_response) && !empty($test_response);
     }
     
     /**
@@ -50,7 +51,7 @@ class AutoBlog_OpenAI {
      */
     public function generate_post($params = array()) {
         if (empty($this->api_key)) {
-            return new WP_Error('no_api_key', __('OpenAI API key not configured.', 'autoblog'));
+            return new WP_Error('no_api_key', __('Google Gemini API key not configured.', 'autoblog'));
         }
         
         $post_type = $params['post_type'] ?? 'how-to';
