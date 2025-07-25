@@ -800,8 +800,264 @@ textarea:focus {
     .progress-bar::after {
         animation: none;
     }
-    
+
     .loading::after {
         animation: none;
+    }
+}
+
+/* Onboarding Styles */
+.autoblog-onboarding {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.autoblog-onboarding-step {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.autoblog-onboarding-step h2 {
+    margin-top: 0;
+    color: #1d2327;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.autoblog-onboarding-step p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #50575e;
+    margin-bottom: 20px;
+}
+
+.autoblog-questions {
+    margin: 20px 0;
+}
+
+.question-group {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f6f7f7;
+    border-radius: 4px;
+}
+
+.question-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.question-group textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 8px 12px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.autoblog-next-steps {
+    background: #f0f6fc;
+    border: 1px solid #c3e4f7;
+    border-radius: 4px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.autoblog-next-steps h3 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+.autoblog-next-steps ol {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.autoblog-next-steps li {
+    margin-bottom: 8px;
+}
+
+.autoblog-next-steps a {
+    color: #0073aa;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.autoblog-next-steps a:hover {
+    text-decoration: underline;
+}
+
+/* Schedule Generator Styles */
+.autoblog-schedule-controls {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.schedule-generator h3 {
+    margin-top: 0;
+    color: #1d2327;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.schedule-options {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.schedule-options label {
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.schedule-options select {
+    padding: 6px 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#schedule-generation-status {
+    margin-top: 15px;
+    padding: 10px;
+    background: #f0f6fc;
+    border: 1px solid #c3e4f7;
+    border-radius: 4px;
+}
+
+#schedule-generation-status .spinner {
+    float: none;
+    margin: 0 5px 0 0;
+}
+
+/* Content Review Styles */
+.autoblog-content-review {
+    margin-top: 20px;
+}
+
+.autoblog-review-item {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.autoblog-review-item h3 {
+    margin-top: 0;
+    color: #1d2327;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.autoblog-review-item p {
+    margin: 8px 0;
+    color: #50575e;
+}
+
+.content-preview {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #50575e;
+}
+
+.review-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.review-actions .button {
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid;
+    display: inline-block;
+    text-align: center;
+}
+
+.review-actions .button-primary {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+
+.review-actions .button-primary:hover {
+    background: #135e96;
+    border-color: #135e96;
+}
+
+.review-actions .button-secondary {
+    background: #f6f7f7;
+    border-color: #dcdcde;
+    color: #50575e;
+}
+
+.review-actions .button-secondary:hover {
+    background: #f0f0f1;
+    border-color: #8c8f94;
+}
+
+/* Status indicators */
+.status-pending {
+    color: #d63638;
+    font-weight: 600;
+}
+
+.status-generated {
+    color: #dba617;
+    font-weight: 600;
+}
+
+.status-published {
+    color: #00a32a;
+    font-weight: 600;
+}
+
+.status-rejected {
+    color: #646970;
+    font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .autoblog-onboarding-step {
+        padding: 20px;
+    }
+
+    .schedule-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .review-actions {
+        flex-direction: column;
+    }
+
+    .review-actions .button {
+        text-align: center;
     }
 }
