@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AutoBlog
  * Plugin URI: https://github.com/your-username/autoblog
- * Description: AI-powered WordPress plugin for automated blog content generation using OpenAI and Perplexity APIs with research-backed content creation.
+ * Description: AI-powered WordPress plugin for automated blog content generation using Google Gemini and Perplexity APIs with research-backed content creation.
  * Version: 1.0.0
  * Author: Your Name
  * Author URI: https://your-website.com
@@ -38,7 +38,7 @@ require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-deactivator.php';
 // Include core classes
 require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog.php';
 require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-admin.php';
-require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-openai.php';
+require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-gemini.php';
 require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-perplexity.php';
 require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-scheduler.php';
 require_once AUTOBLOG_INCLUDES_DIR . 'class-autoblog-affiliate.php';

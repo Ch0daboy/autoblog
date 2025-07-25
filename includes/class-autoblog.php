@@ -191,7 +191,7 @@ class AutoBlog {
     private function sanitize_settings($settings) {
         $sanitized = array();
         
-        $sanitized['openai_api_key'] = sanitize_text_field($settings['openai_api_key'] ?? '');
+        $sanitized['gemini_api_key'] = sanitize_text_field($settings['gemini_api_key'] ?? '');
         $sanitized['perplexity_api_key'] = sanitize_text_field($settings['perplexity_api_key'] ?? '');
         $sanitized['blog_description'] = sanitize_textarea_field($settings['blog_description'] ?? '');
         $sanitized['auto_publish'] = (bool) ($settings['auto_publish'] ?? false);
@@ -220,8 +220,8 @@ class AutoBlog {
             wp_send_json_error(__('API key is required', 'autoblog'));
         }
         
-        $openai = new AutoBlog_OpenAI();
-        $result = $openai->test_connection($api_key);
+        $gemini = new AutoBlog_Gemini();
+        $result = $gemini->test_connection($api_key);
         
         if ($result) {
             wp_send_json_success(__('Connection successful!', 'autoblog'));
