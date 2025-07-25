@@ -1,48 +1,49 @@
 <?php
 /**
- * AutoBlog OpenAI Integration Class
+ * AutoBlog Google Gemini Integration Class
  *
  * @package AutoBlog
  */
 
-class AutoBlog_OpenAI {
-    
+class AutoBlog_Gemini {
+
     /**
-     * OpenAI API endpoint
+     * Google Gemini API endpoint
      */
-    private $api_endpoint = 'https://api.openai.com/v1/';
-    
+    private $api_endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
     /**
      * API key
      */
     private $api_key;
-    
+
     /**
      * Plugin settings
      */
     private $settings;
-    
+
     /**
      * Constructor
      */
     public function __construct() {
         $this->settings = get_option('autoblog_settings', array());
-        $this->api_key = $this->settings['openai_api_key'] ?? '';
+        $this->api_key = $this->settings['gemini_api_key'] ?? '';
     }
     
     /**
-     * Test OpenAI API connection
+     * Test Google Gemini API connection
      */
     public function test_connection($api_key = null) {
         $key = $api_key ?: $this->api_key;
-        
+
         if (empty($key)) {
             return false;
         }
-        
-        $response = $this->make_request('models', array(), 'GET', $key);
-        
-        return !is_wp_error($response) && isset($response['data']);
+
+        // Test with a simple generation request
+        $test_response = $this->generate_text("Hello", array('max_tokens' => 10), $key);
+
+        return !is_wp_error($test_response) && !empty($test_response);
     }
     
     /**
@@ -50,7 +51,7 @@ class AutoBlog_OpenAI {
      */
     public function generate_post($params = array()) {
         if (empty($this->api_key)) {
-            return new WP_Error('no_api_key', __('OpenAI API key not configured.', 'autoblog'));
+            return new WP_Error('no_api_key', __('Google Gemini API key not configured.', 'autoblog'));
         }
         
         $post_type = $params['post_type'] ?? 'how-to';
@@ -67,7 +68,11 @@ class AutoBlog_OpenAI {
             return $content_response;
         }
         
-        $content = $content_response['choices'][0]['message']['content'] ?? '';
+        // Parse Gemini response format
+        $content = '';
+        if (isset($content_response['candidates'][0]['content']['parts'][0]['text'])) {
+            $content = $content_response['candidates'][0]['content']['parts'][0]['text'];
+        }
         
         if (empty($content)) {
             return new WP_Error('empty_content', __('Generated content is empty.', 'autoblog'));
@@ -174,49 +179,66 @@ class AutoBlog_OpenAI {
     }
     
     /**
-     * Generate text using OpenAI API
+     * Generate text using Google Gemini API
      */
-    private function generate_text($prompt, $model = 'gpt-4o-mini') {
+    private function generate_text($prompt, $options = array(), $api_key = null) {
+        $key = $api_key ?: $this->api_key;
+
+        if (empty($key)) {
+            return new WP_Error('no_api_key', __('Google Gemini API key not configured.', 'autoblog'));
+        }
+
+        $defaults = array(
+            'model' => 'gemini-pro',
+            'max_tokens' => 4000,
+            'temperature' => 0.7
+        );
+
+        $options = wp_parse_args($options, $defaults);
+
+        // Format prompt for Gemini
+        $system_instruction = 'You are a professional content writer and SEO expert. Always respond with valid JSON format when requested.';
+        $full_prompt = $system_instruction . "\n\n" . $prompt;
+
         $data = array(
-            'model' => $model,
-            'messages' => array(
+            'contents' => array(
                 array(
-                    'role' => 'system',
-                    'content' => 'You are a professional content writer and SEO expert. Always respond with valid JSON format.'
-                ),
-                array(
-                    'role' => 'user',
-                    'content' => $prompt
+                    'parts' => array(
+                        array(
+                            'text' => $full_prompt
+                        )
+                    )
                 )
             ),
-            'max_tokens' => 4000,
-            'temperature' => 0.7,
-            'top_p' => 1,
-            'frequency_penalty' => 0,
-            'presence_penalty' => 0
+            'generationConfig' => array(
+                'temperature' => $options['temperature'],
+                'maxOutputTokens' => $options['max_tokens'],
+                'topP' => 0.8,
+                'topK' => 40
+            )
         );
-        
-        return $this->make_request('chat/completions', $data);
+
+        return $this->make_gemini_request($options['model'], $data, $key);
     }
     
     /**
-     * Generate featured image using DALL-E
+     * Generate featured image (placeholder for now - can integrate with external services)
      */
     public function generate_featured_image($title) {
-        if (empty($this->api_key)) {
-            return false;
-        }
-        
-        $prompt = "Create a professional, high-quality featured image for a blog post titled: {$title}. Style: modern, clean, relevant to the topic, suitable for web use.";
-        
-        $data = array(
-            'model' => 'dall-e-3',
-            'prompt' => $prompt,
-            'n' => 1,
-            'size' => '1024x1024',
-            'quality' => 'standard',
-            'response_format' => 'url'
-        );
+        // For now, return false to skip image generation
+        // TODO: Integrate with external image generation service or use stock photos
+        return false;
+
+        // Alternative: Use a placeholder image service
+        /*
+        $encoded_title = urlencode($title);
+        $placeholder_url = "https://via.placeholder.com/1024x576/0066cc/ffffff?text=" . $encoded_title;
+
+        // Download and save the placeholder image
+        $image_id = $this->download_and_save_image($placeholder_url, $title);
+        return $image_id;
+        */
+    }
         
         $response = $this->make_request('images/generations', $data);
         
@@ -427,59 +449,63 @@ class AutoBlog_OpenAI {
     }
     
     /**
-     * Make API request to OpenAI
+     * Make API request to Google Gemini
      */
-    private function make_request($endpoint, $data = array(), $method = 'POST', $api_key = null) {
-        $key = $api_key ?: $this->api_key;
-        
-        if (empty($key)) {
-            return new WP_Error('no_api_key', __('OpenAI API key is required.', 'autoblog'));
+    private function make_gemini_request($model, $data, $api_key) {
+        if (empty($api_key)) {
+            return new WP_Error('no_api_key', __('Google Gemini API key is required.', 'autoblog'));
         }
-        
+
+        $url = $this->api_endpoint . $model . ':generateContent?key=' . $api_key;
+
         $args = array(
-            'method' => $method,
+            'method' => 'POST',
             'headers' => array(
-                'Authorization' => 'Bearer ' . $key,
                 'Content-Type' => 'application/json',
                 'User-Agent' => 'AutoBlog-WordPress-Plugin/1.0'
             ),
             'timeout' => 120,
-            'sslverify' => true
+            'sslverify' => true,
+            'body' => json_encode($data)
         );
-        
-        if ($method === 'POST' && !empty($data)) {
-            $args['body'] = json_encode($data);
-        }
-        
-        $response = wp_remote_request($this->api_endpoint . $endpoint, $args);
-        
+
+        $response = wp_remote_request($url, $args);
+
         if (is_wp_error($response)) {
-            $this->log_api_usage($endpoint, $data, $response->get_error_message(), 'error');
+            $this->log_api_usage($model, $data, $response->get_error_message(), 'error');
             return $response;
         }
-        
+
         $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
-        
+
         // Log the raw response for debugging
-        error_log('OpenAI API Response: ' . $body);
-        
+        error_log('Gemini API Response: ' . $body);
+
         $decoded = json_decode($body, true);
-        
+
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $error_msg = 'Invalid JSON response from OpenAI API. Raw response: ' . substr($body, 0, 500);
-            $this->log_api_usage($endpoint, $data, $error_msg, 'error');
+            $error_msg = 'Invalid JSON response from Gemini API. Raw response: ' . substr($body, 0, 500);
+            $this->log_api_usage($model, $data, $error_msg, 'error');
             return new WP_Error('json_error', __($error_msg, 'autoblog'));
         }
-        
+
         if ($status_code >= 400) {
             $error_message = $decoded['error']['message'] ?? 'Unknown API error. Status: ' . $status_code;
-            $this->log_api_usage($endpoint, $data, $error_message, 'error');
+            $this->log_api_usage($model, $data, $error_message, 'error');
             return new WP_Error('api_error', $error_message);
         }
-        
-        $this->log_api_usage($endpoint, $data, $decoded, 'success');
+
+        $this->log_api_usage($model, $data, $decoded, 'success');
         return $decoded;
+    }
+
+    /**
+     * Legacy method for backward compatibility
+     */
+    private function make_request($endpoint, $data = array(), $method = 'POST', $api_key = null) {
+        // This method is kept for backward compatibility but redirects to Gemini
+        return $this->make_gemini_request('gemini-pro', $data, $api_key ?: $this->api_key);
     }
     
     /**
@@ -553,7 +579,7 @@ class AutoBlog_OpenAI {
      */
     public function generate_research_backed_post($research_data) {
         if (empty($this->api_key)) {
-            return new WP_Error('no_api_key', __('OpenAI API key not configured.', 'autoblog'));
+            return new WP_Error('no_api_key', __('Google Gemini API key not configured.', 'autoblog'));
         }
 
         $topic = $research_data['topic'];
@@ -567,13 +593,17 @@ class AutoBlog_OpenAI {
         $prompt = $this->build_research_backed_prompt($topic, $content_type, $research_content, $sources, $key_points, $blog_description);
 
         // Generate the main content
-        $content_response = $this->generate_text($prompt, 'gpt-4o');
+        $content_response = $this->generate_text($prompt, array('model' => 'gemini-pro', 'max_tokens' => 4000));
 
         if (is_wp_error($content_response)) {
             return $content_response;
         }
 
-        $content = $content_response['choices'][0]['message']['content'] ?? '';
+        // Parse Gemini response format
+        $content = '';
+        if (isset($content_response['candidates'][0]['content']['parts'][0]['text'])) {
+            $content = $content_response['candidates'][0]['content']['parts'][0]['text'];
+        }
 
         if (empty($content)) {
             return new WP_Error('empty_content', __('Generated content is empty.', 'autoblog'));

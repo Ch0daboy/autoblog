@@ -114,7 +114,7 @@ AutoBlog now features **Perplexity AI integration** for research-backed content 
 ### Research Workflow:
 1. **Research Phase**: Perplexity AI conducts comprehensive research on your topic
 2. **Source Verification**: Multiple sources are gathered and verified
-3. **Content Generation**: OpenAI creates content based on research findings
+3. **Content Generation**: Google Gemini creates content based on research findings
 4. **Citation Integration**: Sources are automatically integrated into the content
 5. **Quality Assurance**: Research-backed content with proper attribution
 
@@ -124,7 +124,7 @@ AutoBlog now features **Perplexity AI integration** for research-backed content 
 
 - WordPress (PHP + REST API)
 - JavaScript (admin panel interactivity)
-- OpenAI API (GPT + DALL·E)
+- Google Gemini API (Advanced AI Content Generation)
 - Perplexity AI API (Research & Real-time Data)
 - Google Search Console API
 - Amazon Associates API (optional)

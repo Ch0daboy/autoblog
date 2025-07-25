@@ -113,7 +113,7 @@ class AutoBlog_Admin {
     public function sanitize_settings($input) {
         $sanitized = array();
         
-        $sanitized['openai_api_key'] = sanitize_text_field($input['openai_api_key'] ?? '');
+        $sanitized['gemini_api_key'] = sanitize_text_field($input['gemini_api_key'] ?? '');
         $sanitized['perplexity_api_key'] = sanitize_text_field($input['perplexity_api_key'] ?? '');
         $sanitized['blog_description'] = sanitize_textarea_field($input['blog_description'] ?? '');
         $sanitized['auto_publish'] = (bool) ($input['auto_publish'] ?? false);
@@ -139,7 +139,7 @@ class AutoBlog_Admin {
             
             <?php if (!$is_configured): ?>
                 <div class="notice notice-warning">
-                    <p><?php _e('Please configure your OpenAI API key and blog description in the settings to get started.', 'autoblog'); ?></p>
+                    <p><?php _e('Please configure your Google Gemini API key and blog description in the settings to get started.', 'autoblog'); ?></p>
                     <p><a href="<?php echo admin_url('admin.php?page=autoblog-settings'); ?>" class="button button-primary"><?php _e('Go to Settings', 'autoblog'); ?></a></p>
                 </div>
             <?php endif; ?>
@@ -183,11 +183,11 @@ class AutoBlog_Admin {
                 
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php _e('OpenAI API Key', 'autoblog'); ?></th>
+                        <th scope="row"><?php _e('Google Gemini API Key', 'autoblog'); ?></th>
                         <td>
-                            <input type="password" name="autoblog_settings[openai_api_key]" value="<?php echo esc_attr($settings['openai_api_key'] ?? ''); ?>" class="regular-text" />
-                            <button type="button" id="test-openai-connection" class="button"><?php _e('Test Connection', 'autoblog'); ?></button>
-                            <p class="description"><?php _e('Enter your OpenAI API key to enable content generation.', 'autoblog'); ?></p>
+                            <input type="password" name="autoblog_settings[gemini_api_key]" value="<?php echo esc_attr($settings['gemini_api_key'] ?? ''); ?>" class="regular-text" />
+                            <button type="button" id="test-gemini-connection" class="button"><?php _e('Test Connection', 'autoblog'); ?></button>
+                            <p class="description"><?php _e('Enter your Google Gemini API key to enable content generation.', 'autoblog'); ?></p>
                             <div id="connection-status"></div>
                         </td>
                     </tr>

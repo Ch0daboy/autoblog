@@ -21,8 +21,8 @@
          * Bind event handlers
          */
         bindEvents: function() {
-            // Test OpenAI connection
-            $('#test-openai-connection').on('click', this.testOpenAIConnection);
+            // Test Gemini connection
+            $('#test-gemini-connection').on('click', this.testGeminiConnection);
 
             // Test Perplexity connection
             $('#test-perplexity-connection').on('click', this.testPerplexityConnection);
@@ -69,24 +69,24 @@
         },
         
         /**
-         * Test OpenAI API connection
+         * Test Gemini API connection
          */
-        testOpenAIConnection: function(e) {
+        testGeminiConnection: function(e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var $status = $('#connection-status');
-            
+
             $button.prop('disabled', true).text('Testing...');
             $status.removeClass('success error').text('Testing connection...');
-            
+
             $.ajax({
                 url: autoblog_admin.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'autoblog_test_openai',
+                    action: 'autoblog_test_api',
                     nonce: autoblog_admin.nonce,
-                    api_key: $('#openai_api_key').val()
+                    api_key: $('input[name="autoblog_settings[gemini_api_key]"]').val()
                 },
                 success: function(response) {
                     if (response.success) {

@@ -44,7 +44,7 @@ class AutoBlog {
         
         // Security hooks
         add_filter('wp_kses_allowed_html', array($this, 'allow_iframe_in_posts'), 10, 2);
-        add_action('wp_ajax_autoblog_test_api', array($this, 'test_openai_connection'));
+        add_action('wp_ajax_autoblog_test_api', array($this, 'test_gemini_connection'));
         add_action('wp_ajax_autoblog_test_perplexity_api', array($this, 'test_perplexity_connection'));
         add_action('wp_ajax_autoblog_generate_schedule', array($this, 'generate_content_schedule'));
         add_action('wp_ajax_autoblog_generate_post', array($this, 'generate_single_post'));
@@ -142,8 +142,8 @@ class AutoBlog {
      * REST endpoint to generate a post
      */
     public function rest_generate_post($request) {
-        $openai = new AutoBlog_OpenAI();
-        $result = $openai->generate_post($request->get_params());
+        $gemini = new AutoBlog_Gemini();
+        $result = $gemini->generate_post($request->get_params());
         
         if (is_wp_error($result)) {
             return new WP_Error('generation_failed', $result->get_error_message(), array('status' => 500));
@@ -191,7 +191,7 @@ class AutoBlog {
     private function sanitize_settings($settings) {
         $sanitized = array();
         
-        $sanitized['openai_api_key'] = sanitize_text_field($settings['openai_api_key'] ?? '');
+        $sanitized['gemini_api_key'] = sanitize_text_field($settings['gemini_api_key'] ?? '');
         $sanitized['perplexity_api_key'] = sanitize_text_field($settings['perplexity_api_key'] ?? '');
         $sanitized['blog_description'] = sanitize_textarea_field($settings['blog_description'] ?? '');
         $sanitized['auto_publish'] = (bool) ($settings['auto_publish'] ?? false);
@@ -205,9 +205,9 @@ class AutoBlog {
     }
     
     /**
-     * AJAX handler to test OpenAI connection
+     * AJAX handler to test Gemini connection
      */
-    public function test_openai_connection() {
+    public function test_gemini_connection() {
         check_ajax_referer('autoblog_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
@@ -220,13 +220,13 @@ class AutoBlog {
             wp_send_json_error(__('API key is required', 'autoblog'));
         }
         
-        $openai = new AutoBlog_OpenAI();
-        $result = $openai->test_connection($api_key);
+        $gemini = new AutoBlog_Gemini();
+        $result = $gemini->test_connection($api_key);
         
         if ($result) {
-            wp_send_json_success(__('Connection successful!', 'autoblog'));
+            wp_send_json_success(__('Gemini connection successful!', 'autoblog'));
         } else {
-            wp_send_json_error(__('Connection failed. Please check your API key.', 'autoblog'));
+            wp_send_json_error(__('Gemini connection failed. Please check your API key.', 'autoblog'));
         }
     }
     
@@ -263,8 +263,8 @@ class AutoBlog {
         $post_type = sanitize_text_field($_POST['post_type'] ?? 'how-to');
         $topic = sanitize_text_field($_POST['topic'] ?? '');
         
-        $openai = new AutoBlog_OpenAI();
-        $result = $openai->generate_post(array(
+        $gemini = new AutoBlog_Gemini();
+        $result = $gemini->generate_post(array(
             'post_type' => $post_type,
             'topic' => $topic
         ));
@@ -426,9 +426,9 @@ class AutoBlog {
             wp_send_json_error($research_result->get_error_message());
         }
 
-        // Now use the research data to generate the actual content with OpenAI
-        $openai = new AutoBlog_OpenAI();
-        $content_result = $openai->generate_research_backed_post($research_result);
+        // Now use the research data to generate the actual content with Gemini
+        $gemini = new AutoBlog_Gemini();
+        $content_result = $gemini->generate_research_backed_post($research_result);
 
         if (!is_wp_error($content_result)) {
             wp_send_json_success(array(
