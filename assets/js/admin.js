@@ -51,7 +51,12 @@
             
             // Affiliate content generation
             $('#generate-affiliate-content').on('click', this.generateAffiliateContent);
-            
+
+            // Content review actions
+            $('.approve-content').on('click', this.approveContent);
+            $('.reject-content').on('click', this.rejectContent);
+            $('.edit-content').on('click', this.editContent);
+
             // Real-time updates
             this.startRealTimeUpdates();
         },
@@ -97,35 +102,37 @@
          */
         generateSchedule: function(e) {
             e.preventDefault();
-            
+
             var $button = $(this);
-            var $status = $('#schedule-status');
-            
+            var $status = $('#schedule-generation-status');
+            var weeks = $('#schedule-weeks').val() || 4;
+
             var data = {
-                action: 'autoblog_generate_schedule',
+                action: 'autoblog_generate_content_schedule',
                 nonce: autoblog_admin.nonce,
-                days: $('#schedule_days').val(),
-                posts_per_day: $('#posts_per_day').val(),
-                content_types: $('#content_types').val()
+                weeks: weeks
             };
-            
+
             $button.prop('disabled', true).text('Generating...');
-            $status.text('Generating content schedule...');
-            
+            $status.show();
+
             $.ajax({
                 url: autoblog_admin.ajax_url,
                 type: 'POST',
                 data: data,
                 success: function(response) {
                     if (response.success) {
-                        $status.text('✓ Schedule generated successfully!');
-                        AutoBlogAdmin.refreshScheduleTable();
+                        $status.html('<p style="color: green;">✓ Generated ' + response.data.generated + ' posts successfully! Saved ' + response.data.saved + ' to schedule.</p>');
+                        // Refresh the page to show new schedule
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
                     } else {
-                        $status.text('✗ ' + response.data);
+                        $status.html('<p style="color: red;">✗ ' + response.data + '</p>');
                     }
                 },
                 error: function() {
-                    $status.text('✗ Failed to generate schedule');
+                    $status.html('<p style="color: red;">✗ Failed to generate schedule</p>');
                 },
                 complete: function() {
                     $button.prop('disabled', false).text('Generate Schedule');
@@ -584,4 +591,143 @@
          */
         loadDashboardData: function() {
             if ($('#autoblog-dashboard').length === 0) {
-                return{"toolcall":{"thought":"Now I'll create the admin JavaScript file to handle AJAX interactions and dynamic functionality in the admin interface.","name":"write_to_file","params":{"rewrite":false,"file_path":"/home/noob/autoblog/assets/js/admin.js","content":
+                return;
+            }
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_get_dashboard_data',
+                    nonce: autoblog_admin.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        AutoBlogAdmin.updateDashboardStats(response.data);
+                    }
+                }
+            });
+        },
+
+        /**
+         * Update dashboard statistics
+         */
+        updateDashboardStats: function(data) {
+            if (data.stats) {
+                $('#total-posts').text(data.stats.total_posts);
+                $('#scheduled-posts').text(data.stats.scheduled_posts);
+                $('#api-calls').text(data.stats.api_calls);
+            }
+        },
+
+        /**
+         * Approve content for publishing
+         */
+        approveContent: function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var contentId = $button.data('id');
+
+            if (!confirm('Are you sure you want to approve and publish this content?')) {
+                return;
+            }
+
+            $button.prop('disabled', true).text('Publishing...');
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_approve_content',
+                    nonce: autoblog_admin.nonce,
+                    content_id: contentId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $button.closest('.autoblog-review-item').fadeOut();
+                        alert('Content published successfully!');
+                    } else {
+                        alert('Failed to publish content: ' + response.data);
+                    }
+                },
+                error: function() {
+                    alert('Failed to publish content');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Approve & Publish');
+                }
+            });
+        },
+
+        /**
+         * Reject content
+         */
+        rejectContent: function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var contentId = $button.data('id');
+
+            if (!confirm('Are you sure you want to reject this content?')) {
+                return;
+            }
+
+            $button.prop('disabled', true).text('Rejecting...');
+
+            $.ajax({
+                url: autoblog_admin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'autoblog_reject_content',
+                    nonce: autoblog_admin.nonce,
+                    content_id: contentId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $button.closest('.autoblog-review-item').fadeOut();
+                        alert('Content rejected');
+                    } else {
+                        alert('Failed to reject content: ' + response.data);
+                    }
+                },
+                error: function() {
+                    alert('Failed to reject content');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Reject');
+                }
+            });
+        },
+
+        /**
+         * Edit content
+         */
+        editContent: function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var contentId = $button.data('id');
+
+            // For now, just redirect to WordPress post editor
+            // In a future version, we could implement inline editing
+            alert('Content editing will be available in a future version. For now, you can approve the content and edit it in the WordPress post editor.');
+        },
+
+        /**
+         * Start real-time updates
+         */
+        startRealTimeUpdates: function() {
+            // Update dashboard every 30 seconds
+            setInterval(function() {
+                AutoBlogAdmin.loadDashboardData();
+            }, 30000);
+        }
+    };
+
+    // Initialize when document is ready
+    $(document).ready(function() {
+        AutoBlogAdmin.init();
+    });
+
+})(jQuery);

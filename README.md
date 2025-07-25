@@ -43,17 +43,17 @@ AutoBlog is a WordPress plugin that uses the OpenAI API to **fully manage and au
 
 ### Phase 1: MVP (v1.0)
 
-- [ ] OpenAI API integration (GPT-4 or GPT-4o)
-- [ ] User onboarding: API Key + blog description + clarifying Q&A
-- [ ] Blog post schedule generator using diverse post types
-- [ ] Post generation & publishing (manual approval & auto-publish)
-- [ ] Image generation using DALL·E or Stable Diffusion
-- [ ] Simple Amazon affiliate link injection
-- [ ] Basic settings dashboard
+- [x] OpenAI API integration (GPT-4 or GPT-4o)
+- [x] User onboarding: API Key + blog description + clarifying Q&A
+- [x] Blog post schedule generator using diverse post types
+- [x] Post generation & publishing (manual approval & auto-publish)
+- [x] Image generation using DALL·E or Stable Diffusion
+- [x] Simple Amazon affiliate link injection
+- [x] Basic settings dashboard
 
 ### Phase 2: Pro Features (v2.0)
 
-- [ ] Comment monitoring and AI auto-reply feature
+- [x] Comment monitoring and AI auto-reply feature
 - [ ] Google Search Console OAuth integration
 - [ ] SEO optimization based on GSC data (queries, CTR, impressions)
 - [ ] AI-powered meta titles and descriptions

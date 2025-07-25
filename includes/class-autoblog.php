@@ -47,6 +47,7 @@ class AutoBlog {
         add_action('wp_ajax_autoblog_test_api', array($this, 'test_openai_connection'));
         add_action('wp_ajax_autoblog_generate_schedule', array($this, 'generate_content_schedule'));
         add_action('wp_ajax_autoblog_generate_post', array($this, 'generate_single_post'));
+        add_action('wp_ajax_autoblog_get_dashboard_data', array($this, 'get_dashboard_data'));
     }
     
     /**
@@ -298,5 +299,43 @@ class AutoBlog {
     public function update_setting($key, $value) {
         $this->settings[$key] = $value;
         update_option('autoblog_settings', $this->settings);
+    }
+
+    /**
+     * AJAX handler to get dashboard data
+     */
+    public function get_dashboard_data() {
+        check_ajax_referer('autoblog_admin', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Insufficient permissions', 'autoblog'));
+        }
+
+        global $wpdb;
+
+        // Get statistics
+        $total_posts = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+             WHERE pm.meta_key = '_autoblog_generated' AND pm.meta_value = '1'"
+        );
+
+        $scheduled_posts = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}autoblog_schedule WHERE status = 'pending'"
+        );
+
+        $api_calls = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}autoblog_api_usage WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+        );
+
+        $data = array(
+            'stats' => array(
+                'total_posts' => intval($total_posts),
+                'scheduled_posts' => intval($scheduled_posts),
+                'api_calls' => intval($api_calls)
+            )
+        );
+
+        wp_send_json_success($data);
     }
 }

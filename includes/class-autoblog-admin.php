@@ -14,6 +14,10 @@ class AutoBlog_Admin {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_notices', array($this, 'admin_notices'));
+        add_action('admin_init', array($this, 'handle_onboarding_submissions'));
+        add_action('wp_ajax_autoblog_approve_content', array($this, 'ajax_approve_content'));
+        add_action('wp_ajax_autoblog_reject_content', array($this, 'ajax_reject_content'));
+        add_action('wp_ajax_autoblog_generate_schedule', array($this, 'ajax_generate_schedule'));
     }
     
     /**
@@ -64,6 +68,24 @@ class AutoBlog_Admin {
             'manage_options',
             'autoblog-analytics',
             array($this, 'analytics_page')
+        );
+
+        add_submenu_page(
+            'autoblog',
+            __('Onboarding', 'autoblog'),
+            __('Onboarding', 'autoblog'),
+            'manage_options',
+            'autoblog-onboarding',
+            array($this, 'onboarding_page')
+        );
+
+        add_submenu_page(
+            'autoblog',
+            __('Content Review', 'autoblog'),
+            __('Content Review', 'autoblog'),
+            'manage_options',
+            'autoblog-review',
+            array($this, 'content_review_page')
         );
     }
     
@@ -223,9 +245,26 @@ class AutoBlog_Admin {
         <div class="wrap">
             <h1><?php _e('Content Schedule', 'autoblog'); ?></h1>
             
-            <div class="tablenav top">
-                <div class="alignleft actions">
-                    <button type="button" id="generate-schedule" class="button"><?php _e('Generate New Schedule', 'autoblog'); ?></button>
+            <div class="autoblog-schedule-controls">
+                <div class="schedule-generator">
+                    <h3><?php _e('Generate Intelligent Schedule', 'autoblog'); ?></h3>
+                    <p><?php _e('Let AI create a strategic content calendar based on your blog description and preferences.', 'autoblog'); ?></p>
+
+                    <div class="schedule-options">
+                        <label for="schedule-weeks"><?php _e('Number of weeks:', 'autoblog'); ?></label>
+                        <select id="schedule-weeks">
+                            <option value="2">2 weeks</option>
+                            <option value="4" selected>4 weeks</option>
+                            <option value="8">8 weeks</option>
+                            <option value="12">12 weeks</option>
+                        </select>
+
+                        <button type="button" id="generate-schedule" class="button button-primary"><?php _e('Generate Schedule', 'autoblog'); ?></button>
+                    </div>
+
+                    <div id="schedule-generation-status" style="display: none;">
+                        <p><span class="spinner is-active"></span> <?php _e('Generating intelligent content schedule...', 'autoblog'); ?></p>
+                    </div>
                 </div>
             </div>
             
@@ -329,24 +368,91 @@ class AutoBlog_Admin {
         ?>
         <div class="wrap">
             <h1><?php _e('AutoBlog Analytics', 'autoblog'); ?></h1>
-            
+
             <div class="autoblog-analytics">
                 <div class="autoblog-cards">
                     <div class="autoblog-card">
                         <h3><?php _e('Content Generation', 'autoblog'); ?></h3>
                         <?php $this->display_content_stats(); ?>
                     </div>
-                    
+
                     <div class="autoblog-card">
                         <h3><?php _e('API Usage', 'autoblog'); ?></h3>
                         <?php $this->display_api_stats(); ?>
                     </div>
-                    
+
                     <div class="autoblog-card">
                         <h3><?php _e('Performance', 'autoblog'); ?></h3>
                         <?php $this->display_performance_stats(); ?>
                     </div>
                 </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Onboarding page
+     */
+    public function onboarding_page() {
+        $settings = get_option('autoblog_settings', array());
+        $onboarding_data = get_option('autoblog_onboarding', array());
+        $current_step = $_GET['step'] ?? 1;
+
+        ?>
+        <div class="wrap">
+            <h1><?php _e('AutoBlog Onboarding', 'autoblog'); ?></h1>
+
+            <div class="autoblog-onboarding">
+                <?php $this->render_onboarding_step($current_step, $settings, $onboarding_data); ?>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Content review page
+     */
+    public function content_review_page() {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'autoblog_schedule';
+        $pending_content = $wpdb->get_results(
+            "SELECT * FROM $table_name WHERE status = 'generated' ORDER BY created_at DESC"
+        );
+
+        ?>
+        <div class="wrap">
+            <h1><?php _e('Content Review', 'autoblog'); ?></h1>
+
+            <div class="autoblog-content-review">
+                <?php if (empty($pending_content)): ?>
+                    <p><?php _e('No content pending review.', 'autoblog'); ?></p>
+                    <p><a href="<?php echo admin_url('admin.php?page=autoblog-generate'); ?>" class="button button-primary"><?php _e('Generate New Content', 'autoblog'); ?></a></p>
+                <?php else: ?>
+                    <?php foreach ($pending_content as $content): ?>
+                        <div class="autoblog-review-item" data-id="<?php echo $content->id; ?>">
+                            <h3><?php echo esc_html($content->title); ?></h3>
+                            <p><strong><?php _e('Type:', 'autoblog'); ?></strong> <?php echo esc_html($content->post_type); ?></p>
+                            <p><strong><?php _e('Scheduled:', 'autoblog'); ?></strong> <?php echo esc_html($content->scheduled_date); ?></p>
+
+                            <div class="content-preview">
+                                <?php
+                                $content_data = json_decode($content->content, true);
+                                if ($content_data && isset($content_data['content'])) {
+                                    echo wp_kses_post(wp_trim_words($content_data['content'], 50));
+                                }
+                                ?>
+                            </div>
+
+                            <div class="review-actions">
+                                <button class="button button-primary approve-content" data-id="<?php echo $content->id; ?>"><?php _e('Approve & Publish', 'autoblog'); ?></button>
+                                <button class="button edit-content" data-id="<?php echo $content->id; ?>"><?php _e('Edit', 'autoblog'); ?></button>
+                                <button class="button button-secondary reject-content" data-id="<?php echo $content->id; ?>"><?php _e('Reject', 'autoblog'); ?></button>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
         <?php
@@ -381,21 +487,251 @@ class AutoBlog_Admin {
      */
     private function display_statistics() {
         global $wpdb;
-        
+
         $total_generated = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} p 
-             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id 
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE pm.meta_key = '_autoblog_generated' AND pm.meta_value = '1'"
         );
-        
+
         $scheduled_count = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->prefix}autoblog_schedule WHERE status = 'pending'"
         );
-        
+
         echo '<ul>';
         echo '<li>' . sprintf(__('Total Generated Posts: %d', 'autoblog'), $total_generated) . '</li>';
         echo '<li>' . sprintf(__('Scheduled Posts: %d', 'autoblog'), $scheduled_count) . '</li>';
         echo '</ul>';
+    }
+
+    /**
+     * Render onboarding step
+     */
+    private function render_onboarding_step($step, $settings, $onboarding_data) {
+        switch ($step) {
+            case 1:
+                $this->render_onboarding_step_1($settings);
+                break;
+            case 2:
+                $this->render_onboarding_step_2($settings, $onboarding_data);
+                break;
+            case 3:
+                $this->render_onboarding_step_3($settings, $onboarding_data);
+                break;
+            case 4:
+                $this->render_onboarding_step_4($settings, $onboarding_data);
+                break;
+            default:
+                $this->render_onboarding_complete($settings, $onboarding_data);
+        }
+    }
+
+    /**
+     * Onboarding Step 1: Basic Setup
+     */
+    private function render_onboarding_step_1($settings) {
+        ?>
+        <div class="autoblog-onboarding-step">
+            <h2><?php _e('Step 1: Basic Setup', 'autoblog'); ?></h2>
+            <p><?php _e('Let\'s start by setting up your OpenAI API key and describing your blog.', 'autoblog'); ?></p>
+
+            <form method="post" action="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=2'); ?>">
+                <?php wp_nonce_field('autoblog_onboarding_step1'); ?>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('OpenAI API Key', 'autoblog'); ?></th>
+                        <td>
+                            <input type="password" name="openai_api_key" value="<?php echo esc_attr($settings['openai_api_key'] ?? ''); ?>" class="regular-text" required />
+                            <p class="description"><?php _e('Get your API key from OpenAI Platform.', 'autoblog'); ?></p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Blog Description', 'autoblog'); ?></th>
+                        <td>
+                            <textarea name="blog_description" rows="5" cols="50" class="large-text" required><?php echo esc_textarea($settings['blog_description'] ?? ''); ?></textarea>
+                            <p class="description"><?php _e('Describe your blog\'s niche, target audience, and goals. Be specific!', 'autoblog'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <p class="submit">
+                    <input type="submit" name="submit" class="button button-primary" value="<?php _e('Continue', 'autoblog'); ?>" />
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Onboarding Step 2: AI Questions
+     */
+    private function render_onboarding_step_2($settings, $onboarding_data) {
+        // Generate clarifying questions based on blog description
+        $questions = $this->generate_clarifying_questions($settings['blog_description'] ?? '');
+
+        ?>
+        <div class="autoblog-onboarding-step">
+            <h2><?php _e('Step 2: Tell Us More', 'autoblog'); ?></h2>
+            <p><?php _e('Based on your blog description, we have some questions to better understand your content needs.', 'autoblog'); ?></p>
+
+            <form method="post" action="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=3'); ?>">
+                <?php wp_nonce_field('autoblog_onboarding_step2'); ?>
+
+                <div class="autoblog-questions">
+                    <?php foreach ($questions as $i => $question): ?>
+                        <div class="question-group">
+                            <label for="question_<?php echo $i; ?>"><strong><?php echo esc_html($question); ?></strong></label>
+                            <textarea name="answers[<?php echo $i; ?>]" id="question_<?php echo $i; ?>" rows="3" cols="50" class="large-text"></textarea>
+                            <input type="hidden" name="questions[<?php echo $i; ?>]" value="<?php echo esc_attr($question); ?>" />
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <p class="submit">
+                    <a href="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=1'); ?>" class="button"><?php _e('Back', 'autoblog'); ?></a>
+                    <input type="submit" name="submit" class="button button-primary" value="<?php _e('Continue', 'autoblog'); ?>" />
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Onboarding Step 3: Content Preferences
+     */
+    private function render_onboarding_step_3($settings, $onboarding_data) {
+        ?>
+        <div class="autoblog-onboarding-step">
+            <h2><?php _e('Step 3: Content Preferences', 'autoblog'); ?></h2>
+            <p><?php _e('Choose what types of content you\'d like AutoBlog to create for you.', 'autoblog'); ?></p>
+
+            <form method="post" action="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=4'); ?>">
+                <?php wp_nonce_field('autoblog_onboarding_step3'); ?>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Content Types', 'autoblog'); ?></th>
+                        <td>
+                            <fieldset>
+                                <label><input type="checkbox" name="content_types[]" value="how_to_guide" checked /> <?php _e('How-to Guides', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="product_review" checked /> <?php _e('Product Reviews', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="listicle" checked /> <?php _e('Listicles', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="case_study" /> <?php _e('Case Studies', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="opinion_piece" /> <?php _e('Opinion Pieces', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="comparison" /> <?php _e('Comparison Posts', 'autoblog'); ?></label><br>
+                                <label><input type="checkbox" name="content_types[]" value="tutorial" /> <?php _e('Tutorials', 'autoblog'); ?></label>
+                            </fieldset>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Publishing Frequency', 'autoblog'); ?></th>
+                        <td>
+                            <select name="posts_per_week">
+                                <option value="1"><?php _e('1 post per week', 'autoblog'); ?></option>
+                                <option value="2" selected><?php _e('2 posts per week', 'autoblog'); ?></option>
+                                <option value="3"><?php _e('3 posts per week', 'autoblog'); ?></option>
+                                <option value="5"><?php _e('5 posts per week (daily)', 'autoblog'); ?></option>
+                                <option value="7"><?php _e('7 posts per week', 'autoblog'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Publishing Time', 'autoblog'); ?></th>
+                        <td>
+                            <input type="time" name="posting_time" value="09:00" />
+                            <p class="description"><?php _e('What time should posts be published?', 'autoblog'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <p class="submit">
+                    <a href="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=2'); ?>" class="button"><?php _e('Back', 'autoblog'); ?></a>
+                    <input type="submit" name="submit" class="button button-primary" value="<?php _e('Continue', 'autoblog'); ?>" />
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Onboarding Step 4: Monetization Setup
+     */
+    private function render_onboarding_step_4($settings, $onboarding_data) {
+        ?>
+        <div class="autoblog-onboarding-step">
+            <h2><?php _e('Step 4: Monetization (Optional)', 'autoblog'); ?></h2>
+            <p><?php _e('Set up affiliate marketing to monetize your content automatically.', 'autoblog'); ?></p>
+
+            <form method="post" action="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=complete'); ?>">
+                <?php wp_nonce_field('autoblog_onboarding_step4'); ?>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Amazon Affiliate ID', 'autoblog'); ?></th>
+                        <td>
+                            <input type="text" name="amazon_affiliate_id" value="<?php echo esc_attr($settings['amazon_affiliate_id'] ?? ''); ?>" class="regular-text" />
+                            <p class="description"><?php _e('Your Amazon Associates tracking ID (optional).', 'autoblog'); ?></p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Auto-Publish', 'autoblog'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="auto_publish" value="1" />
+                                <?php _e('Automatically publish generated content without review', 'autoblog'); ?>
+                            </label>
+                            <p class="description"><?php _e('If unchecked, content will be saved as drafts for your review.', 'autoblog'); ?></p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Comment Auto-Reply', 'autoblog'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="comment_auto_reply" value="1" />
+                                <?php _e('Enable AI-powered automatic comment replies', 'autoblog'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+
+                <p class="submit">
+                    <a href="<?php echo admin_url('admin.php?page=autoblog-onboarding&step=3'); ?>" class="button"><?php _e('Back', 'autoblog'); ?></a>
+                    <input type="submit" name="submit" class="button button-primary" value="<?php _e('Complete Setup', 'autoblog'); ?>" />
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Onboarding Complete
+     */
+    private function render_onboarding_complete($settings, $onboarding_data) {
+        ?>
+        <div class="autoblog-onboarding-step">
+            <h2><?php _e('🎉 Setup Complete!', 'autoblog'); ?></h2>
+            <p><?php _e('AutoBlog is now configured and ready to start generating content for your blog.', 'autoblog'); ?></p>
+
+            <div class="autoblog-next-steps">
+                <h3><?php _e('Next Steps:', 'autoblog'); ?></h3>
+                <ol>
+                    <li><a href="<?php echo admin_url('admin.php?page=autoblog-schedule'); ?>"><?php _e('Generate your first content schedule', 'autoblog'); ?></a></li>
+                    <li><a href="<?php echo admin_url('admin.php?page=autoblog-generate'); ?>"><?php _e('Create your first blog post', 'autoblog'); ?></a></li>
+                    <li><a href="<?php echo admin_url('admin.php?page=autoblog-analytics'); ?>"><?php _e('Monitor your content performance', 'autoblog'); ?></a></li>
+                </ol>
+            </div>
+
+            <p class="submit">
+                <a href="<?php echo admin_url('admin.php?page=autoblog'); ?>" class="button button-primary"><?php _e('Go to Dashboard', 'autoblog'); ?></a>
+            </p>
+        </div>
+        <?php
     }
     
     /**
@@ -477,7 +813,7 @@ class AutoBlog_Admin {
      */
     public function admin_notices() {
         $settings = get_option('autoblog_settings', array());
-        
+
         if (empty($settings['openai_api_key'])) {
             ?>
             <div class="notice notice-warning is-dismissible">
@@ -485,5 +821,183 @@ class AutoBlog_Admin {
             </div>
             <?php
         }
+    }
+
+    /**
+     * Generate clarifying questions based on blog description
+     */
+    private function generate_clarifying_questions($blog_description) {
+        if (empty($blog_description)) {
+            return array(
+                'What is your target audience?',
+                'What tone should your content have?',
+                'What are your main content goals?'
+            );
+        }
+
+        $openai = new AutoBlog_OpenAI();
+
+        $prompt = "Based on this blog description: '{$blog_description}'\n\n";
+        $prompt .= "Generate 3-5 specific clarifying questions that would help understand:\n";
+        $prompt .= "- Target audience details\n";
+        $prompt .= "- Content style preferences\n";
+        $prompt .= "- Specific topics of interest\n";
+        $prompt .= "- Business goals\n\n";
+        $prompt .= "Return only the questions, one per line, without numbering.";
+
+        $response = $openai->generate_text($prompt, 'gpt-4o-mini');
+
+        if (is_wp_error($response)) {
+            // Fallback questions
+            return array(
+                'Who is your target audience?',
+                'What tone should your content have (professional, casual, friendly)?',
+                'What are your main business goals with this blog?',
+                'What specific topics are you most interested in covering?'
+            );
+        }
+
+        $content = $response['choices'][0]['message']['content'] ?? '';
+        $questions = array_filter(explode("\n", $content));
+
+        return array_slice($questions, 0, 5); // Limit to 5 questions
+    }
+
+    /**
+     * Handle onboarding form submissions
+     */
+    public function handle_onboarding_submissions() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        // Handle Step 1 submission
+        if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'autoblog_onboarding_step1')) {
+            $settings = get_option('autoblog_settings', array());
+            $settings['openai_api_key'] = sanitize_text_field($_POST['openai_api_key']);
+            $settings['blog_description'] = sanitize_textarea_field($_POST['blog_description']);
+            update_option('autoblog_settings', $settings);
+
+            wp_redirect(admin_url('admin.php?page=autoblog-onboarding&step=2'));
+            exit;
+        }
+
+        // Handle Step 2 submission
+        if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'autoblog_onboarding_step2')) {
+            $onboarding_data = get_option('autoblog_onboarding', array());
+            $onboarding_data['questions'] = $_POST['questions'] ?? array();
+            $onboarding_data['answers'] = $_POST['answers'] ?? array();
+            update_option('autoblog_onboarding', $onboarding_data);
+
+            wp_redirect(admin_url('admin.php?page=autoblog-onboarding&step=3'));
+            exit;
+        }
+
+        // Handle Step 3 submission
+        if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'autoblog_onboarding_step3')) {
+            $settings = get_option('autoblog_settings', array());
+            $settings['content_types'] = $_POST['content_types'] ?? array();
+            $settings['schedule_settings'] = array(
+                'posts_per_week' => intval($_POST['posts_per_week'] ?? 2),
+                'posting_time' => sanitize_text_field($_POST['posting_time'] ?? '09:00')
+            );
+            update_option('autoblog_settings', $settings);
+
+            wp_redirect(admin_url('admin.php?page=autoblog-onboarding&step=4'));
+            exit;
+        }
+
+        // Handle Step 4 submission
+        if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'autoblog_onboarding_step4')) {
+            $settings = get_option('autoblog_settings', array());
+            $settings['amazon_affiliate_id'] = sanitize_text_field($_POST['amazon_affiliate_id'] ?? '');
+            $settings['auto_publish'] = isset($_POST['auto_publish']);
+            $settings['comment_auto_reply'] = isset($_POST['comment_auto_reply']);
+            $settings['onboarding_completed'] = true;
+            update_option('autoblog_settings', $settings);
+
+            wp_redirect(admin_url('admin.php?page=autoblog-onboarding&step=complete'));
+            exit;
+        }
+    }
+
+    /**
+     * AJAX handler for approving content
+     */
+    public function ajax_approve_content() {
+        check_ajax_referer('autoblog_admin', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+
+        $content_id = intval($_POST['content_id']);
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'autoblog_schedule';
+
+        // Get the content
+        $content = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $content_id));
+
+        if (!$content) {
+            wp_send_json_error('Content not found');
+        }
+
+        $content_data = json_decode($content->content, true);
+
+        // Create the post
+        $post_data = array(
+            'post_title' => $content->title,
+            'post_content' => $content_data['content'],
+            'post_status' => 'publish',
+            'post_type' => 'post',
+            'meta_input' => array(
+                '_autoblog_generated' => '1',
+                '_autoblog_post_type' => $content->post_type
+            )
+        );
+
+        $post_id = wp_insert_post($post_data);
+
+        if ($post_id) {
+            // Update schedule status
+            $wpdb->update(
+                $table_name,
+                array('status' => 'published', 'post_id' => $post_id),
+                array('id' => $content_id),
+                array('%s', '%d'),
+                array('%d')
+            );
+
+            wp_send_json_success('Content published successfully');
+        } else {
+            wp_send_json_error('Failed to publish content');
+        }
+    }
+
+    /**
+     * AJAX handler for rejecting content
+     */
+    public function ajax_reject_content() {
+        check_ajax_referer('autoblog_admin', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+
+        $content_id = intval($_POST['content_id']);
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'autoblog_schedule';
+
+        $wpdb->update(
+            $table_name,
+            array('status' => 'rejected'),
+            array('id' => $content_id),
+            array('%s'),
+            array('%d')
+        );
+
+        wp_send_json_success('Content rejected');
     }
 }
