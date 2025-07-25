@@ -1,7 +1,7 @@
 {
   "name": "AutoBlog",
   "version": "1.0.0",
-  "description": "AI-powered WordPress plugin for automated blog content generation using OpenAI API",
+  "description": "AI-powered WordPress plugin for automated blog content generation using OpenAI and Perplexity APIs",
   "author": "Your Name",
   "license": "GPL-2.0-or-later",
   "homepage": "https://github.com/your-username/autoblog",
@@ -14,6 +14,8 @@
     "plugin",
     "ai",
     "openai",
+    "perplexity",
+    "research",
     "content-generation",
     "automation",
     "blogging",
@@ -23,6 +25,8 @@
   ],
   "features": [
     "Automated content generation using OpenAI GPT models",
+    "Research-backed content generation using Perplexity AI",
+    "Real-time web data integration for accurate content",
     "AI-powered comment management and replies",
     "Content scheduling and publishing",
     "Amazon affiliate integration",
@@ -33,6 +37,7 @@
   ],
   "dependencies": {
     "openai-api": "Required for content generation",
+    "perplexity-api": "Required for research-backed content generation",
     "curl": "Required for API communications",
     "json": "Required for data processing"
   },

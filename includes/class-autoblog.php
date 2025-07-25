@@ -45,8 +45,11 @@ class AutoBlog {
         // Security hooks
         add_filter('wp_kses_allowed_html', array($this, 'allow_iframe_in_posts'), 10, 2);
         add_action('wp_ajax_autoblog_test_api', array($this, 'test_openai_connection'));
+        add_action('wp_ajax_autoblog_test_perplexity_api', array($this, 'test_perplexity_connection'));
         add_action('wp_ajax_autoblog_generate_schedule', array($this, 'generate_content_schedule'));
         add_action('wp_ajax_autoblog_generate_post', array($this, 'generate_single_post'));
+        add_action('wp_ajax_autoblog_research_topic', array($this, 'research_topic'));
+        add_action('wp_ajax_autoblog_generate_research_content', array($this, 'generate_research_content'));
         add_action('wp_ajax_autoblog_get_dashboard_data', array($this, 'get_dashboard_data'));
     }
     
@@ -189,11 +192,14 @@ class AutoBlog {
         $sanitized = array();
         
         $sanitized['openai_api_key'] = sanitize_text_field($settings['openai_api_key'] ?? '');
+        $sanitized['perplexity_api_key'] = sanitize_text_field($settings['perplexity_api_key'] ?? '');
         $sanitized['blog_description'] = sanitize_textarea_field($settings['blog_description'] ?? '');
         $sanitized['auto_publish'] = (bool) ($settings['auto_publish'] ?? false);
         $sanitized['amazon_affiliate_id'] = sanitize_text_field($settings['amazon_affiliate_id'] ?? '');
         $sanitized['comment_auto_reply'] = (bool) ($settings['comment_auto_reply'] ?? false);
         $sanitized['gsc_connected'] = (bool) ($settings['gsc_connected'] ?? false);
+        $sanitized['research_enabled'] = (bool) ($settings['research_enabled'] ?? false);
+        $sanitized['research_depth'] = sanitize_text_field($settings['research_depth'] ?? 'medium');
         
         return $sanitized;
     }
@@ -337,5 +343,100 @@ class AutoBlog {
         );
 
         wp_send_json_success($data);
+    }
+
+    /**
+     * AJAX handler to test Perplexity connection
+     */
+    public function test_perplexity_connection() {
+        check_ajax_referer('autoblog_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Insufficient permissions', 'autoblog'));
+        }
+
+        $api_key = sanitize_text_field($_POST['api_key'] ?? '');
+
+        if (empty($api_key)) {
+            wp_send_json_error(__('API key is required', 'autoblog'));
+        }
+
+        $perplexity = new AutoBlog_Perplexity();
+        $result = $perplexity->test_connection($api_key);
+
+        if ($result) {
+            wp_send_json_success(__('Perplexity connection successful!', 'autoblog'));
+        } else {
+            wp_send_json_error(__('Perplexity connection failed. Please check your API key.', 'autoblog'));
+        }
+    }
+
+    /**
+     * AJAX handler to research a topic
+     */
+    public function research_topic() {
+        check_ajax_referer('autoblog_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Insufficient permissions', 'autoblog'));
+        }
+
+        $topic = sanitize_text_field($_POST['topic'] ?? '');
+        $research_depth = sanitize_text_field($_POST['research_depth'] ?? 'medium');
+
+        if (empty($topic)) {
+            wp_send_json_error(__('Topic is required', 'autoblog'));
+        }
+
+        $perplexity = new AutoBlog_Perplexity();
+        $result = $perplexity->research($topic, array(
+            'max_tokens' => $research_depth === 'deep' ? 4000 : 2000,
+            'search_recency_filter' => 'month'
+        ));
+
+        if (!is_wp_error($result)) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result->get_error_message());
+        }
+    }
+
+    /**
+     * AJAX handler to generate research-backed content
+     */
+    public function generate_research_content() {
+        check_ajax_referer('autoblog_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Insufficient permissions', 'autoblog'));
+        }
+
+        $topic = sanitize_text_field($_POST['topic'] ?? '');
+        $content_type = sanitize_text_field($_POST['content_type'] ?? 'article');
+        $research_depth = sanitize_text_field($_POST['research_depth'] ?? 'medium');
+
+        if (empty($topic)) {
+            wp_send_json_error(__('Topic is required', 'autoblog'));
+        }
+
+        $perplexity = new AutoBlog_Perplexity();
+        $research_result = $perplexity->generate_research_content($topic, $content_type, $research_depth);
+
+        if (is_wp_error($research_result)) {
+            wp_send_json_error($research_result->get_error_message());
+        }
+
+        // Now use the research data to generate the actual content with OpenAI
+        $openai = new AutoBlog_OpenAI();
+        $content_result = $openai->generate_research_backed_post($research_result);
+
+        if (!is_wp_error($content_result)) {
+            wp_send_json_success(array(
+                'research' => $research_result,
+                'content' => $content_result
+            ));
+        } else {
+            wp_send_json_error($content_result->get_error_message());
+        }
     }
 }

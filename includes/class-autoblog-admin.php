@@ -60,7 +60,16 @@ class AutoBlog_Admin {
             'autoblog-generate',
             array($this, 'generate_page')
         );
-        
+
+        add_submenu_page(
+            'autoblog',
+            __('Research & Generate', 'autoblog'),
+            __('Research & Generate', 'autoblog'),
+            'manage_options',
+            'autoblog-research',
+            array($this, 'research_page')
+        );
+
         add_submenu_page(
             'autoblog',
             __('Analytics', 'autoblog'),
@@ -105,11 +114,14 @@ class AutoBlog_Admin {
         $sanitized = array();
         
         $sanitized['openai_api_key'] = sanitize_text_field($input['openai_api_key'] ?? '');
+        $sanitized['perplexity_api_key'] = sanitize_text_field($input['perplexity_api_key'] ?? '');
         $sanitized['blog_description'] = sanitize_textarea_field($input['blog_description'] ?? '');
         $sanitized['auto_publish'] = (bool) ($input['auto_publish'] ?? false);
         $sanitized['amazon_affiliate_id'] = sanitize_text_field($input['amazon_affiliate_id'] ?? '');
         $sanitized['comment_auto_reply'] = (bool) ($input['comment_auto_reply'] ?? false);
         $sanitized['gsc_connected'] = (bool) ($input['gsc_connected'] ?? false);
+        $sanitized['research_enabled'] = (bool) ($input['research_enabled'] ?? false);
+        $sanitized['research_depth'] = sanitize_text_field($input['research_depth'] ?? 'medium');
         
         return $sanitized;
     }
@@ -179,7 +191,35 @@ class AutoBlog_Admin {
                             <div id="connection-status"></div>
                         </td>
                     </tr>
-                    
+
+                    <tr>
+                        <th scope="row"><?php _e('Perplexity API Key', 'autoblog'); ?></th>
+                        <td>
+                            <input type="password" name="autoblog_settings[perplexity_api_key]" value="<?php echo esc_attr($settings['perplexity_api_key'] ?? ''); ?>" class="regular-text" />
+                            <button type="button" id="test-perplexity-connection" class="button"><?php _e('Test Connection', 'autoblog'); ?></button>
+                            <p class="description"><?php _e('Enter your Perplexity API key to enable research-backed content generation.', 'autoblog'); ?></p>
+                            <div id="perplexity-connection-status"></div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Research Settings', 'autoblog'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="autoblog_settings[research_enabled]" value="1" <?php checked($settings['research_enabled'] ?? false); ?> />
+                                <?php _e('Enable research-backed content generation', 'autoblog'); ?>
+                            </label>
+                            <p class="description"><?php _e('When enabled, content will be generated using real-time research data from Perplexity.', 'autoblog'); ?></p>
+
+                            <label for="research_depth"><?php _e('Research Depth:', 'autoblog'); ?></label>
+                            <select name="autoblog_settings[research_depth]" id="research_depth">
+                                <option value="light" <?php selected($settings['research_depth'] ?? 'medium', 'light'); ?>><?php _e('Light - Quick research', 'autoblog'); ?></option>
+                                <option value="medium" <?php selected($settings['research_depth'] ?? 'medium', 'medium'); ?>><?php _e('Medium - Balanced research', 'autoblog'); ?></option>
+                                <option value="deep" <?php selected($settings['research_depth'] ?? 'medium', 'deep'); ?>><?php _e('Deep - Comprehensive research', 'autoblog'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+
                     <tr>
                         <th scope="row"><?php _e('Blog Description', 'autoblog'); ?></th>
                         <td>
@@ -360,7 +400,153 @@ class AutoBlog_Admin {
         </div>
         <?php
     }
-    
+
+    /**
+     * Research & Generate page
+     */
+    public function research_page() {
+        $settings = get_option('autoblog_settings', array());
+        $perplexity_configured = !empty($settings['perplexity_api_key']);
+
+        ?>
+        <div class="wrap">
+            <h1><?php _e('Research & Generate Content', 'autoblog'); ?></h1>
+
+            <?php if (!$perplexity_configured): ?>
+                <div class="notice notice-warning">
+                    <p><?php _e('Please configure your Perplexity API key in the settings to enable research-backed content generation.', 'autoblog'); ?></p>
+                    <p><a href="<?php echo admin_url('admin.php?page=autoblog-settings'); ?>" class="button button-primary"><?php _e('Go to Settings', 'autoblog'); ?></a></p>
+                </div>
+            <?php endif; ?>
+
+            <div class="autoblog-research-container">
+                <div class="autoblog-research-form">
+                    <h2><?php _e('Step 1: Research Topic', 'autoblog'); ?></h2>
+                    <form id="research-topic-form">
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><?php _e('Topic/Keyword', 'autoblog'); ?></th>
+                                <td>
+                                    <input type="text" name="topic" id="research-topic" class="regular-text" placeholder="<?php _e('Enter a topic to research...', 'autoblog'); ?>" required />
+                                    <p class="description"><?php _e('Enter a topic or keyword you want to research and create content about.', 'autoblog'); ?></p>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th scope="row"><?php _e('Research Depth', 'autoblog'); ?></th>
+                                <td>
+                                    <select name="research_depth" id="research-depth">
+                                        <option value="light"><?php _e('Light - Quick overview', 'autoblog'); ?></option>
+                                        <option value="medium" selected><?php _e('Medium - Balanced research', 'autoblog'); ?></option>
+                                        <option value="deep"><?php _e('Deep - Comprehensive analysis', 'autoblog'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <p class="submit">
+                            <button type="submit" class="button button-primary" <?php echo !$perplexity_configured ? 'disabled' : ''; ?>><?php _e('Start Research', 'autoblog'); ?></button>
+                        </p>
+                    </form>
+                </div>
+
+                <div id="research-results" class="autoblog-research-results" style="display: none;">
+                    <h2><?php _e('Research Results', 'autoblog'); ?></h2>
+                    <div id="research-content"></div>
+                    <div id="research-sources"></div>
+
+                    <h2><?php _e('Step 2: Generate Content', 'autoblog'); ?></h2>
+                    <form id="generate-research-content-form">
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><?php _e('Content Type', 'autoblog'); ?></th>
+                                <td>
+                                    <select name="content_type" id="content-type">
+                                        <option value="article"><?php _e('Article', 'autoblog'); ?></option>
+                                        <option value="news"><?php _e('News Article', 'autoblog'); ?></option>
+                                        <option value="how-to"><?php _e('How-to Guide', 'autoblog'); ?></option>
+                                        <option value="review"><?php _e('Review', 'autoblog'); ?></option>
+                                        <option value="listicle"><?php _e('Listicle', 'autoblog'); ?></option>
+                                        <option value="trend-analysis"><?php _e('Trend Analysis', 'autoblog'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <p class="submit">
+                            <button type="submit" class="button button-primary"><?php _e('Generate Content', 'autoblog'); ?></button>
+                        </p>
+                    </form>
+                </div>
+
+                <div id="generated-content" class="autoblog-generated-content" style="display: none;">
+                    <h2><?php _e('Generated Content', 'autoblog'); ?></h2>
+                    <div id="content-preview"></div>
+                    <div id="content-actions">
+                        <button type="button" class="button button-primary" id="publish-content"><?php _e('Publish Now', 'autoblog'); ?></button>
+                        <button type="button" class="button" id="save-draft"><?php _e('Save as Draft', 'autoblog'); ?></button>
+                        <button type="button" class="button" id="regenerate-content"><?php _e('Regenerate', 'autoblog'); ?></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+        .autoblog-research-container {
+            max-width: 1200px;
+        }
+        .autoblog-research-results {
+            background: #f9f9f9;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .autoblog-generated-content {
+            background: #f0f8ff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        #research-content {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 3px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #research-sources {
+            margin: 10px 0;
+        }
+        #research-sources ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #research-sources li {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 4px solid #0073aa;
+        }
+        #content-preview {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 3px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        #content-actions {
+            margin: 15px 0;
+        }
+        #content-actions button {
+            margin-right: 10px;
+        }
+        </style>
+        <?php
+    }
+
     /**
      * Analytics page
      */
